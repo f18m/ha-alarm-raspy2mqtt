@@ -1,10 +1,10 @@
 # ha-alarm-raspy2mqtt
 
 Small Python daemon to transform a Raspberry into a bridge from GPIO pins and MQTT, for HomeAssistant usage.
-In particular this software allows:
-* sample a wide range of electrical signals (voltages), from 3V-48V AC or DC, using a dedicated Raspberry HAT
-* sample 3.3V inputs from Raspberry GPIO pins
-* use Raspberry GPIO pins in output mode to activate relays
+In particular this software allows to:
+* sample a wide range of electrical signals (voltages) from 3V-48V AC or DC, using a dedicated Raspberry HAT, and publish them on MQTT
+* sample 3.3V inputs from Raspberry GPIO pins directly (with no isolation/protection/HAT), and publish them on MQTT
+* listen to MQTT topics and use Raspberry GPIO pins in output mode to activate relays, using a dedicated Raspberry HAT / relay board
 
 All these features are implemented in an [Home Assistant](https://www.home-assistant.io/)-friendly fashion.
 For example, this small utility also subscribes to MQTT to apply "switch" configurations to drive loads.
@@ -75,3 +75,7 @@ the documentation of the configuration options, with some basic example.
 Very similar project, more flexible and much bigger, targeting specific sensor boards:
 * [mqtt-io](https://github.com/flyte/mqtt-io)
 
+
+# TODO
+
+Add support for HomeAssistant DISCOVERY, see https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery 
