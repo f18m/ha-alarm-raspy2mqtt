@@ -1,5 +1,5 @@
 # Stage 1: the builder
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 RUN mkdir /app/raspy2mqtt
@@ -13,7 +13,7 @@ RUN python3 -m build
 
 
 # Stage 2: Create the final image
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 LABEL org.opencontainers.image.source=https://github.com/f18m/ha-alarm-raspy2mqtt
 
