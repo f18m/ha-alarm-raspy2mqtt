@@ -4,7 +4,7 @@ import json
 
 # from testcontainers.core.utils import raise_for_deprecated_parameter
 
-from tests.mosquitto_container import MosquittoContainer
+from tests.mosquitto_container import MosquittoContainerEnhanced
 from tests.raspy2mqtt_container import Raspy2MQTTContainer
 
 EXPECTED_DISCOVERY_MSG_OUTPUT_1 = """
@@ -53,7 +53,7 @@ EXPECTED_DISCOVERY_MSG_OPTO_ISOLATED_INPUT_1 = """
 @pytest.mark.integration
 def test_mqtt_discovery_messages():
 
-    broker = MosquittoContainer()
+    broker = MosquittoContainerEnhanced()
     broker.start()
 
     topics_under_test = [

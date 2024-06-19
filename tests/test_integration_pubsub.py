@@ -2,13 +2,13 @@ import pytest
 import time
 import signal
 
-from tests.mosquitto_container import MosquittoContainer
+from tests.mosquitto_container import MosquittoContainerEnhanced
 from tests.raspy2mqtt_container import Raspy2MQTTContainer
 
 
 # GLOBALs
 
-broker = MosquittoContainer()
+broker = MosquittoContainerEnhanced()
 
 # HELPERS
 

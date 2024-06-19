@@ -1,9 +1,10 @@
 import os
 from testcontainers.core.container import DockerContainer
+from testcontainers.mqtt import MosquittoContainer
 
 # from testcontainers.core.utils import raise_for_deprecated_parameter
 
-from tests.mosquitto_container import MosquittoContainer
+from tests.mosquitto_container import MosquittoContainerEnhanced
 
 
 class Raspy2MQTTContainer(DockerContainer):
@@ -13,7 +14,7 @@ class Raspy2MQTTContainer(DockerContainer):
 
     CONFIG_FILE = "integration-test-config.yaml"
 
-    def __init__(self, broker: MosquittoContainer) -> None:
+    def __init__(self, broker: MosquittoContainerEnhanced) -> None:
         super().__init__(image="rpi2home-assistant")
 
         TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,11 +29,11 @@ class Raspy2MQTTContainer(DockerContainer):
         broker_container = broker.get_wrapped_container()
         broker_ip = broker.get_docker_client().bridge_ip(broker_container.id)
         print(
-            f"Linking the {self.image} container with the MQTT broker at host:ip {broker_ip}:{MosquittoContainer.DEFAULT_PORT}"
+            f"Linking the {self.image} container with the MQTT broker at host:ip {broker_ip}:{MosquittoContainer.MQTT_PORT}"
         )
 
         self.with_env("MQTT_BROKER_HOST", broker_ip)
-        self.with_env("MQTT_BROKER_PORT", MosquittoContainer.DEFAULT_PORT)
+        self.with_env("MQTT_BROKER_PORT", MosquittoContainer.MQTT_PORT)
 
     def is_running(self):
         self.get_wrapped_container().reload()  # force refresh of container status

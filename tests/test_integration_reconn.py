@@ -3,14 +3,14 @@ import time
 
 # from testcontainers.core.utils import raise_for_deprecated_parameter
 
-from tests.mosquitto_container import MosquittoContainer
+from tests.mosquitto_container import MosquittoContainerEnhanced
 from tests.raspy2mqtt_container import Raspy2MQTTContainer
 
 
 @pytest.mark.integration
 def test_mqtt_reconnection():
 
-    broker = MosquittoContainer()
+    broker = MosquittoContainerEnhanced()
     broker.start()
     with Raspy2MQTTContainer(broker) as container:
         time.sleep(1)  # give time to the Raspy2MQTTContainer to fully start

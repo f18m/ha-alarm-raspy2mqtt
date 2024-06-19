@@ -1,6 +1,6 @@
 import os
 import time
-from testcontainers.core.container import DockerContainer
+from testcontainers.mqtt import MosquittoContainer
 from testcontainers.core.waiting_utils import wait_container_is_ready
 from typing_extensions import Self
 
@@ -10,45 +10,20 @@ import paho.mqtt.enums
 from queue import Queue
 from typing import Optional
 
-# MosquittoContainer
+# MosquittoContainerEnhanced
 
 
-class MosquittoContainer(DockerContainer):
+class MosquittoContainerEnhanced(MosquittoContainer):
     """
-    Specialization of DockerContainer for MQTT broker Mosquitto.
+    Specialization of MosquittoContainer adding the ability to watch topics
     """
-
-    TESTCONTAINER_CLIENT_ID = "TESTCONTAINER-CLIENT"
-    DEFAULT_PORT = 1883
-    CONFIG_FILE = "integration-test-mosquitto.conf"
 
     def __init__(
         self,
         image: str = "eclipse-mosquitto:latest",
-        port: int = None,
-        configfile: Optional[str] = None,
-        password: Optional[str] = None,
         **kwargs,
     ) -> None:
-        # raise_for_deprecated_parameter(kwargs, "port_to_expose", "port")
         super().__init__(image, **kwargs)
-
-        if port is None:
-            self.port = MosquittoContainer.DEFAULT_PORT
-        else:
-            self.port = port
-        self.password = password
-
-        # setup container:
-        self.with_bind_ports(self.port, self.port)
-        if configfile is None:
-            # default config ifle
-            TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-            configfile = os.path.join(TEST_DIR, MosquittoContainer.CONFIG_FILE)
-        self.with_volume_mapping(configfile, "/mosquitto/config/mosquitto.conf")
-        if self.password:
-            # TODO: add authentication
-            pass
 
         # helper used to turn asynchronous methods into synchronous:
         self.msg_queue = Queue()
@@ -56,64 +31,14 @@ class MosquittoContainer(DockerContainer):
         # dictionary of watched topics and their message counts:
         self.watched_topics = {}
 
-        # reusable client context:
-        self.client = None
-
-    @wait_container_is_ready()
-    def _connect(self) -> None:
-        client, err = self.get_client()
-        if err != paho.mqtt.enums.MQTTErrorCode.MQTT_ERR_SUCCESS:
-            raise RuntimeError(f"Failed to estabilish a connection: {err}")
-
-        interval = 1.0
-        timeout = 5
-        start = time.time()
-        while True:
-            duration = time.time() - start
-            if client.is_connected():
-                return
-            if duration > timeout:
-                raise TimeoutError(f"Failed to estabilish a connection after {timeout:.3f} " "seconds")
-            # wait till secondary thread manages to connect successfully:
-            time.sleep(interval)
-
-    def get_client(self, **kwargs) -> tuple[mqtt_client.Client, paho.mqtt.enums.MQTTErrorCode]:
-        """
-        Get a paho.mqtt client connected to this container.
-        Check the returned object is_connected() method before use
-
-        Args:
-            **kwargs: Keyword arguments passed to `paho.mqtt.client`.
-
-        Returns:
-            client: MQTT client to connect to the container.
-            error: an error code or MQTT_ERR_SUCCESS.
-        """
-        err = paho.mqtt.enums.MQTTErrorCode.MQTT_ERR_SUCCESS
-        if self.client is None:
-            self.client = mqtt_client.Client(
-                client_id=MosquittoContainer.TESTCONTAINER_CLIENT_ID,
-                callback_api_version=mqtt_client.CallbackAPIVersion.VERSION2,
-                userdata=self,
-                **kwargs,
-            )
-            self.client._connect_timeout = 1.0
-
-            # connect() is a blocking call:
-            err = self.client.connect(self.get_container_host_ip(), int(self.get_exposed_port(self.port)))
-            self.client.on_message = MosquittoContainer.on_message
-            self.client.loop_start()  # launch a thread to call loop() and dequeue the message
-
-        return self.client, err
-
     def start(self) -> Self:
+        # do container start
         super().start()
-        self._connect()
+        # now add callback
+        self.get_client().on_message = MosquittoContainerEnhanced.on_message
         return self
 
     def stop(self, force=True, delete_volume=True) -> None:
-        self.client.disconnect()
-        self.client = None  # force recreation of the client object at next start()
         self.watched_topics = {}  # clean all watched topics as well
         super().stop(force, delete_volume)
 
@@ -140,7 +65,9 @@ class MosquittoContainer(DockerContainer):
                 return float(self.count) / float(duration)
             return 0.0
 
-    def on_message(client: mqtt_client.Client, mosquitto_container: "MosquittoContainer", msg: mqtt_client.MQTTMessage):
+    def on_message(
+        client: mqtt_client.Client, mosquitto_container: "MosquittoContainerEnhanced", msg: mqtt_client.MQTTMessage
+    ):
         # very verbose but useful for debug:
         # print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         if msg.topic == "$SYS/broker/messages/received":
@@ -158,7 +85,7 @@ class MosquittoContainer(DockerContainer):
         Returns the total number of messages received by the broker so far.
         """
 
-        client, err = self.get_client()
+        client = self.get_client()
         if not client.is_connected():
             raise RuntimeError(f"Could not connect to Mosquitto broker: {err}")
 
@@ -173,7 +100,7 @@ class MosquittoContainer(DockerContainer):
             return 0
 
     def watch_topics(self, topics: list):
-        client, err = self.get_client()
+        client = self.get_client()
         if not client.is_connected():
             raise RuntimeError(f"Could not connect to Mosquitto broker: {err}")
 
@@ -181,7 +108,7 @@ class MosquittoContainer(DockerContainer):
         for t in topics:
             if t in self.watched_topics:
                 continue  # nothing to do... the topic had already been subscribed
-            self.watched_topics[t] = MosquittoContainer.WatchedTopicInfo()
+            self.watched_topics[t] = MosquittoContainerEnhanced.WatchedTopicInfo()
             # the topic list is actually a list of tuples (topic_name,qos)
             filtered_topics.append((t, 0))
 
@@ -191,7 +118,7 @@ class MosquittoContainer(DockerContainer):
             raise RuntimeError(f"Failed to subscribe to topics: {filtered_topics}")
 
     def unwatch_all(self):
-        client, err = self.get_client()
+        client = self.get_client()
         if not client.is_connected():
             raise RuntimeError(f"Could not connect to Mosquitto broker: {err}")
 
