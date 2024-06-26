@@ -100,7 +100,11 @@ run-mosquitto:
 test: unit-test integration-test
 
 unit-test:
+ifeq ($(REGEX),)
 	pytest -vvv --log-level=INFO -m unit
+else
+	pytest -vvvv --log-level=INFO -s -m unit -k $(REGEX)
+endif
 
 integration-test:
 ifeq ($(REGEX),)

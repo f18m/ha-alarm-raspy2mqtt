@@ -82,6 +82,12 @@ class AppConfig:
             }
         )
 
+        self.filter_schema = Schema(
+            {
+                Optional("stability_threshold_sec"): int,
+            }
+        )
+
         self.config_file_schema = Schema(
             {
                 "mqtt_broker": {
@@ -109,6 +115,7 @@ class AppConfig:
                         "active_low": bool,
                         Optional("mqtt"): self.mqtt_schema_for_sensor_on_and_off,
                         "home_assistant": self.home_assistant_schema,
+                        Optional("filter"): self.filter_schema,
                     }
                 ],
                 Optional("gpio_inputs"): [
@@ -160,6 +167,7 @@ class AppConfig:
         has_payload_on_off: bool = True,
         has_state_topic: bool = True,
         is_output: bool = True,
+        populate_filter: bool = True,
     ) -> dict:
         if "description" not in entry_dict:
             entry_dict["description"] = entry_dict["name"]
@@ -199,6 +207,12 @@ class AppConfig:
             if "platform" not in entry_dict["home_assistant"]:
                 entry_dict["home_assistant"]["platform"] = "switch" if is_output else "binary_sensor"
 
+        if populate_filter and not is_output:
+            # filtering the output does not make sense, so the filter parameter is allowed only for inputs
+            if "filter" not in entry_dict:
+                entry_dict["filter"] = {}
+            if "stability_threshold_sec" not in entry_dict["filter"]:
+                entry_dict["filter"]["stability_threshold_sec"] = 0  # 0 means filtering is disabled
         return entry_dict
 
     def load(self, cfg_yaml: str) -> bool:
@@ -230,7 +244,9 @@ class AppConfig:
                 self.config["i2c_optoisolated_inputs"] = []
 
             for input_item in self.config["i2c_optoisolated_inputs"]:
-                input_item = self.populate_defaults_in_list_entry(input_item, has_state_topic=False, is_output=False)
+                input_item = self.populate_defaults_in_list_entry(
+                    input_item, has_state_topic=False, is_output=False, populate_filter=True
+                )
 
                 # check GPIO index
                 idx = int(input_item["input_num"])
@@ -285,6 +301,7 @@ class AppConfig:
                     has_payload_on_off=False,
                     has_state_topic=False,
                     is_output=False,
+                    populate_filter=False,  # GPIO inputs do not support filtering at this time
                 )
 
                 # check GPIO index
@@ -318,7 +335,12 @@ class AppConfig:
                 self.config["outputs"] = []
 
             for output_item in self.config["outputs"]:
-                output_item = self.populate_defaults_in_list_entry(output_item)
+
+                output_item = self.populate_defaults_in_list_entry(
+                    output_item,
+                    is_output=True,
+                    populate_filter=False,  # filtering does not make sense for outputs
+                )
 
                 # check GPIO index
                 idx = int(output_item["gpio"])

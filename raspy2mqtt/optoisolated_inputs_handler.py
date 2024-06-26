@@ -7,9 +7,10 @@ import gpiozero
 import json
 import sys
 import aiomqtt
+import threading
 from raspy2mqtt.constants import MqttQOS, SeqMicroHatConstants
 from raspy2mqtt.config import AppConfig
-
+from raspy2mqtt.circular_buffer import CircularBuffer
 
 #
 # Author: fmontorsi
@@ -37,9 +38,15 @@ class OptoIsolatedInputsHandler:
     client_identifier = "_optoisolated_publisher"
     client_identifier_discovery_pub = "_optoisolated_discovery_publisher"
 
+    buffer_num_samples = 64
+
     def __init__(self):
         # last reading of the 16 digital opto-isolated inputs
-        self.optoisolated_inputs_sampled_values = 0
+        self.optoisolated_inputs_sampled_values = []
+        for i in range(SeqMicroHatConstants.MAX_CHANNELS):
+            self.optoisolated_inputs_sampled_values.append(CircularBuffer(OptoIsolatedInputsHandler.buffer_num_samples))
+
+        self.lock = threading.Lock()
 
         self.stats = {
             "num_readings": 0,
@@ -47,6 +54,7 @@ class OptoIsolatedInputsHandler:
             "num_mqtt_messages": 0,
             "num_connections_discovery_publish": 0,
             "num_mqtt_discovery_messages_published": 0,
+            "ERROR_no_stable_samples": 0,
             "ERROR_num_connections_lost": 0,
         }
 
@@ -54,6 +62,11 @@ class OptoIsolatedInputsHandler:
         buttons = []
         if cfg.disable_hw:
             print("Skipping optoisolated inputs HW initialization (--disable-hw was given)")
+
+            timestamp = int(time.time())
+            with self.lock:
+                for i in range(SeqMicroHatConstants.MAX_CHANNELS):
+                    self.optoisolated_inputs_sampled_values[i].push_sample(timestamp, False)
         else:
             # check if the opto-isolated input board from Sequent Microsystem is indeed present:
             try:
@@ -85,11 +98,17 @@ class OptoIsolatedInputsHandler:
         """
 
         # NOTE0: since this routine is invoked by the gpiozero library, it runs on a secondary OS thread
-        #        so _in theory_ we should be using a mutex when writing to the global 'optoisolated_inputs_sampled_values'
-        #        variable. In practice since it's a simple integer variable, I don't think the mutex is needed.
+        #        so we must use a mutex when writing to the 'optoisolated_inputs_sampled_values' array
         # NOTE1: this is a blocking call that will block until the 16 inputs are sampled
         # NOTE2: this might raise a TimeoutError exception in case the I2C bus transaction fails
-        self.optoisolated_inputs_sampled_values = lib16inpind.readAll(SeqMicroHatConstants.STACK_LEVEL)
+        packed_sample = lib16inpind.readAll(SeqMicroHatConstants.STACK_LEVEL)
+        timestamp = int(time.time())
+
+        with self.lock:
+            for i in range(SeqMicroHatConstants.MAX_CHANNELS):
+                # Extract the bit at position i-th using bitwise AND operation
+                self.optoisolated_inputs_sampled_values[i].push_sample(timestamp, bool(packed_sample & (1 << i)))
+
         self.stats["num_readings"] += 1
 
         # FIXME: right now, it's hard to force-wake the coroutine
@@ -117,33 +136,48 @@ class OptoIsolatedInputsHandler:
                     while not OptoIsolatedInputsHandler.stop_requested:
                         # Publish each sampled value as a separate MQTT topic
                         update_loop_start_sec = time.perf_counter()
+                        timestamp_now = int(time.time())
                         for i in range(SeqMicroHatConstants.MAX_CHANNELS):
-
-                            # IMPORTANT: this function expects something else to update the 'optoisolated_inputs_sampled_values'
-                            #            integer, whenever it is necessary to update it
-
-                            # Extract the bit at position i-th using bitwise AND operation
-                            bit_value = bool(self.optoisolated_inputs_sampled_values & (1 << i))
-
                             # convert from zero-based index 'i' to 1-based index, as used in the config file
                             input_cfg = cfg.get_optoisolated_input_config(1 + i)
-                            if input_cfg is not None:
-                                if input_cfg["active_low"]:
-                                    logical_value = not bit_value
-                                    # input_type = "active low"
+                            if input_cfg is None:
+                                continue
+
+                            # acquire last sampled value for the i-th input
+                            with self.lock:
+                                filter_min_duration = input_cfg["filter"]["stability_threshold_sec"]
+                                if filter_min_duration == 0:
+                                    # filtering disabled -- just pick the most updated sample and use it
+                                    sample = self.optoisolated_inputs_sampled_values[i].get_last_sample()
+                                    assert (
+                                        sample is not None
+                                    )  # this should be impossible as buffer is always initialized with 1 sample at least
                                 else:
-                                    logical_value = bit_value
-                                    # input_type = "active high"
+                                    # filtering enabled -- choose sensor status:
+                                    sample = self.optoisolated_inputs_sampled_values[i].get_stable_sample(
+                                        timestamp_now, filter_min_duration
+                                    )
+                                    if sample is None:
+                                        # failed to find a 'stable' sample -- assume the input is malfunctioning
+                                        self.stats["ERROR_no_stable_samples"] += 1
+                                        sample = (0, False)
 
-                                payload = (
-                                    input_cfg["mqtt"]["payload_on"]
-                                    if logical_value
-                                    else input_cfg["mqtt"]["payload_off"]
-                                )
-                                # print(f"From INPUT#{i+1} [{input_type}] read {int(bit_value)} -> {int(logical_value)}; publishing on mqtt topic [{topic}] the payload: {payload}")
+                            # sample is a tuple (TIMESTAMP;VALUE), extract just the value:
+                            bit_value = sample[1]
+                            if input_cfg["active_low"]:
+                                logical_value = not bit_value
+                                # input_type = "active low"
+                            else:
+                                logical_value = bit_value
+                                # input_type = "active high"
 
-                                await client.publish(input_cfg["mqtt"]["topic"], payload, qos=MqttQOS.AT_LEAST_ONCE)
-                                self.stats["num_mqtt_messages"] += 1
+                            payload = (
+                                input_cfg["mqtt"]["payload_on"] if logical_value else input_cfg["mqtt"]["payload_off"]
+                            )
+                            # print(f"From INPUT#{i+1} [{input_type}] read {int(bit_value)} -> {int(logical_value)}; publishing on mqtt topic [{topic}] the payload: {payload}")
+
+                            await client.publish(input_cfg["mqtt"]["topic"], payload, qos=MqttQOS.AT_LEAST_ONCE)
+                            self.stats["num_mqtt_messages"] += 1
 
                         update_loop_duration_sec = time.perf_counter() - update_loop_start_sec
                         # print(f"Updating all sensors on MQTT took {update_loop_duration_sec} secs")
@@ -160,7 +194,7 @@ class OptoIsolatedInputsHandler:
                 self.stats["ERROR_num_connections_lost"] += 1
                 await asyncio.sleep(cfg.mqtt_reconnection_period_sec)
             except Exception as err:
-                print(f"EXCEPTION: {err}")
+                print(f"EXCEPTION: [{err}]. Exiting with code 99.")
                 sys.exit(99)
 
     async def homeassistant_discovery_message_publish(self, cfg: AppConfig):
@@ -217,4 +251,5 @@ class OptoIsolatedInputsHandler:
         print(">>   OPTO-ISOLATED DISCOVERY messages:")
         print(f">>     Num MQTT discovery messages published: {self.stats['num_mqtt_discovery_messages_published']}")
         print(f">>     Num (re)connections to the MQTT broker: {self.stats['num_connections_discovery_publish']}")
+        print(f">>   ERROR: unstable samples found: {self.stats['ERROR_no_stable_samples']}")
         print(f">>   ERROR: MQTT connections lost: {self.stats['ERROR_num_connections_lost']}")

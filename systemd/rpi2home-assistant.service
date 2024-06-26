@@ -21,6 +21,9 @@ Environment="GPIOZERO_PIN_FACTORY=pigpio"
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=5s
- 
+
+# the time between a graceful SIGTERM and the brute SIGKILL:
+TimeoutStopSec=5
+
 [Install]
 WantedBy=multi-user.target

@@ -18,7 +18,7 @@ EXPECTED_DISCOVERY_MSG_OUTPUT_1 = """
     "manufacturer": "github.com/f18m",
     "model": "rpi2home-assistant",
     "name": "integration-test-instance",
-    "sw_version": "2.1.1",
+    "sw_version": "__THIS_FIELD_IS_NOT_CHECKED__",
     "identifiers": [
       "rpi2home-assistant-integration-test-instance"
     ]
@@ -41,7 +41,7 @@ EXPECTED_DISCOVERY_MSG_OPTO_ISOLATED_INPUT_1 = """
     "manufacturer": "github.com/f18m",
     "model": "rpi2home-assistant",
     "name": "integration-test-instance",
-    "sw_version": "2.1.1",
+    "sw_version": "__THIS_FIELD_IS_NOT_CHECKED__",
     "identifiers": [
       "rpi2home-assistant-integration-test-instance"
     ]
@@ -89,6 +89,8 @@ def test_mqtt_discovery_messages():
             for topic_and_expected in topics_under_test:
                 t = topic_and_expected["topic_name"]
                 exp = topic_and_expected["expected_msg"]
+                expected_dict = json.loads(exp)
+
                 assert broker.get_messages_received_in_watched_topic(t) == attempt
 
                 config_msg = broker.get_last_payload_received_in_watched_topic(t)
@@ -99,8 +101,12 @@ def test_mqtt_discovery_messages():
                     container.print_logs()
                     assert False
 
+                # do not compare version numbers inside discovery messages... this is to avoid
+                # updating this testcase on every new release:
+                del config_dict["device"]["sw_version"]
+                del expected_dict["device"]["sw_version"]
+
                 # check also the contents of the discovery message:
-                expected_dict = json.loads(exp)
                 assert config_dict == expected_dict
 
                 print(f"The discovery message on topic [{t}] matches the expected content. Proceeding.")

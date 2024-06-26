@@ -40,7 +40,7 @@ class MosquittoContainer(DockerContainer):
         self.password = password
 
         # setup container:
-        self.with_bind_ports(self.port, self.port)
+        self.with_exposed_ports(self.port)
         if configfile is None:
             # default config ifle
             TEST_DIR = os.path.dirname(os.path.abspath(__file__))

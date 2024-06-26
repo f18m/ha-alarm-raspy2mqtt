@@ -74,6 +74,11 @@ i2c_optoisolated_inputs:
       device_class: motion
       expire_after: 30
       icon: mdi:motion-sensor
+    filter:
+      # this means that any transition 0->1 or 1->0 shorter than 6secs will be ignored
+      # it also means that the sensor changes will appear to HomeAssistant with a delay
+      # of the same amount of seconds
+      stability_threshold_sec: 6
   - name: opto_input_2
     description: Opto-isolated Input for Sensor BCD
     input_num: 2
