@@ -2,17 +2,17 @@
 
 [[package]]
 name = "aiomqtt"
-version = "2.1.0"
+version = "2.2.0"
 description = "The idiomatic asyncio MQTT client, wrapped around paho-mqtt"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "aiomqtt-2.1.0-py3-none-any.whl", hash = "sha256:ba62afe18e57b01ef28240f192b73cd54d7e42d827a47697997d3e6252a130d1"},
-    {file = "aiomqtt-2.1.0.tar.gz", hash = "sha256:8501c373c00fa7074a990a951285f31340c29b6541aea15e040da9ea33d79719"},
+    {file = "aiomqtt-2.2.0-py3-none-any.whl", hash = "sha256:91dc5e405a4a9040a61caadcfde88babc495dcf57eef21c5585feeabe5d151c4"},
+    {file = "aiomqtt-2.2.0.tar.gz", hash = "sha256:1aef0b258f1662f665b1f272efd0b373e37a94aa2884cd8a8717800f93ac5352"},
 ]
 
 [package.dependencies]
-paho-mqtt = ">=2.0.0,<3.0.0"
+paho-mqtt = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "colorzero"
@@ -52,13 +52,13 @@ test = ["pytest", "pytest-cov"]
 
 [[package]]
 name = "paho-mqtt"
-version = "2.0.0"
+version = "2.1.0"
 description = "MQTT version 5.0/3.1.1 client class"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "paho_mqtt-2.0.0-py3-none-any.whl", hash = "sha256:2ef745073dfc9aa68bfec30d0b9b6f0304ea75182bae85a7c77a80cefce1eff5"},
-    {file = "paho_mqtt-2.0.0.tar.gz", hash = "sha256:13b205f29251e4f2c66a6c923c31fc4fd780561e03b2d775cff8e4f2915cf947"},
+    {file = "paho_mqtt-2.1.0-py3-none-any.whl", hash = "sha256:6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee"},
+    {file = "paho_mqtt-2.1.0.tar.gz", hash = "sha256:12d6e7511d4137555a3f6ea167ae846af2c7357b10bc6fa4f7c3968fc1723834"},
 ]
 
 [package.extras]
@@ -136,6 +136,17 @@ files = [
 ]
 
 [[package]]
+name = "schema"
+version = "0.7.7"
+description = "Simple data validation library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "schema-0.7.7-py2.py3-none-any.whl", hash = "sha256:5d976a5b50f36e74e2157b47097b60002bd4d42e65425fcc9c9befadb4255dde"},
+    {file = "schema-0.7.7.tar.gz", hash = "sha256:7da553abd2958a19dc2547c388cde53398b39196175a9be59ea1caf5ab0a1807"},
+]
+
+[[package]]
 name = "setuptools"
 version = "69.5.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
@@ -184,4 +195,4 @@ test = ["mock", "nose"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<4.0"
-content-hash = "9a4cec5f5963f59b00640db1da5cef5e9f9b618f5470a86c04339d24c8153ad8"
+content-hash = "5c5780dc8d966f172f337c3e09065b56c61e7df47ab7cf25bba259256ef2cf48"
